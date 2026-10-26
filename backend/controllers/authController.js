@@ -65,13 +65,15 @@ export const initiateRegister = async (req, res) => {
       });
     }
 
-    const { delivered } = await sendOtpEmail(normalizedEmail, otp);
+    const { delivered, error: mailError } = await sendOtpEmail(normalizedEmail, otp);
 
     const devExposeOtp = String(process.env.DEV_EXPOSE_OTP).toLowerCase() === 'true';
     res.status(200).json({
       message: delivered
         ? `A 6-digit code was sent to ${normalizedEmail}.`
-        : `Email isn't configured on this server yet, so the code was logged to the server console instead.`,
+        : mailError
+          ? `Gmail rejected the send (${mailError.slice(0, 120)}). Check the server console.`
+          : `GMAIL_USER / GMAIL_APP_PASSWORD are missing in backend/.env, so the code was logged to the server console instead.`,
       email: normalizedEmail,
       ...(devExposeOtp ? { devOtp: otp } : {}),
     });
@@ -137,10 +139,10 @@ export const resendOtp = async (req, res) => {
     user.otpAttempts = 0;
     await user.save();
 
-    const { delivered } = await sendOtpEmail(user.email, otp);
+    const { delivered, error: mailError } = await sendOtpEmail(user.email, otp);
     const devExposeOtp = String(process.env.DEV_EXPOSE_OTP).toLowerCase() === 'true';
     res.json({
-      message: delivered ? 'A new code was sent.' : 'Email not configured — code logged on the server console.',
+      message: delivered ? 'A new code was sent.' : mailError ? `Gmail rejected the send (${mailError.slice(0, 120)}).` : 'GMAIL_USER / GMAIL_APP_PASSWORD missing in .env — code logged on the server console.',
       ...(devExposeOtp ? { devOtp: otp } : {}),
     });
   } catch (err) {
